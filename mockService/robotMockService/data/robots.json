@@ -1,0 +1,17 @@
+[
+  {
+    "id": 1,
+    "name": "Line Follower Bot A",
+    "type": "AMR",
+    "capabilities": ["line following", "obstacle avoidance"]
+  },
+  {
+    "id": 2,
+    "name": "Amazon bot",
+    "type": "Arduino bot",
+    "capabilities": [
+      "Run forward",
+      "Run backwards"
+    ]
+  }
+]

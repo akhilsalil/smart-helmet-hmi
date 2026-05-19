@@ -1,0 +1,16 @@
+# Python env
+__pycache__/
+*.pyc
+.env
+venv/
+.venv/
+
+# Arduino credentials
+
+
+# Flask credentials
+
+
+# OS files
+.DS_Store
+Thumbs.db

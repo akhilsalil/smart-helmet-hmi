@@ -1,0 +1,27 @@
+[
+  {
+    "robot_id": 1,
+    "current_task": "Following path B3",
+    "status": "active",
+    "battery": 78,
+    "completion": 45,
+    "danger_level": 0,
+    "danger_message": null,
+    "last_command": null,
+    "last_command_by": null,
+    "last_updated": null
+  },
+
+  {
+    "robot_id": 2,
+    "current_task": "None",
+    "status": "idle",
+    "battery": 64,
+    "completion": 30,
+    "danger_level": 0,
+    "danger_message": "",
+    "last_command": "Drive forward",
+    "last_command_by": "manager-console",
+    "last_updated": "2026-05-08T14:10:00"
+  }
+]

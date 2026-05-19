@@ -1,0 +1,165 @@
+body {
+    margin: 0;
+    padding: 20px;
+    background-color: #121212;
+    color: #f1f1f1;
+    font-family: Arial, sans-serif;
+}
+
+h1 {
+    text-align: center;
+    margin-bottom: 30px;
+    color: #ffffff;
+}
+
+#robot-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 20px;
+}
+
+.robot-card {
+    background: #1e1e1e;
+    border-radius: 12px;
+    padding: 20px;
+    border: 1px solid #333;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    transition: transform 0.2s ease;
+}
+
+.robot-card:hover {
+    transform: translateY(-3px);
+}
+
+.robot-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.robot-name {
+    font-size: 22px;
+    font-weight: bold;
+}
+
+.robot-type {
+    font-size: 13px;
+    color: #aaa;
+    background: #2d2d2d;
+    padding: 4px 8px;
+    border-radius: 5px;
+}
+
+.info-row {
+    margin-bottom: 10px;
+}
+
+.label {
+    color: #888;
+    font-size: 13px;
+}
+
+.value {
+    font-size: 16px;
+    margin-top: 2px;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.status-active {
+    background-color: #14532d;
+    color: #4ade80;
+}
+
+.status-idle {
+    background-color: #3f3f46;
+    color: #d4d4d8;
+}
+
+.status-commanded {
+    background-color: #1d4ed8;
+    color: #93c5fd;
+}
+
+.battery-bar {
+    width: 100%;
+    height: 16px;
+    background: #2a2a2a;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-top: 5px;
+}
+
+.battery-fill {
+    height: 100%;
+    background: limegreen;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 16px;
+    background: #2a2a2a;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-top: 5px;
+}
+
+.progress-fill {
+    height: 100%;
+    background: #2563eb;
+}
+
+.danger-box {
+    padding: 10px;
+    border-radius: 8px;
+    margin-top: 15px;
+    font-weight: bold;
+    text-align: center;
+}
+
+.danger-0 {
+    background: #14532d;
+    color: #4ade80;
+}
+
+.danger-1 {
+    background: #713f12;
+    color: #fde047;
+}
+
+.danger-2 {
+    background: #7c2d12;
+    color: #fb923c;
+}
+
+.danger-3 {
+    background: #7f1d1d;
+    color: #f87171;
+}
+
+.command-section {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #333;
+}
+
+.last-update {
+    margin-top: 10px;
+    font-size: 12px;
+    color: #777;
+}
+
+.refresh-time {
+    text-align: center;
+    margin-bottom: 20px;
+    color: #999;
+    font-size: 14px;
+}
