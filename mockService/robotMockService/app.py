@@ -3,7 +3,7 @@ import json
 from datetime import datetime
 
 app = Flask(__name__)
-
+app.json.compact = True
 def load_robots():
     with open('data/robots.json') as f:
         return json.load(f)
