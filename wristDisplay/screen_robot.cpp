@@ -1,10 +1,24 @@
 #include "screen_robot.h"
 #include "screen_manager.h"
+#include "wifi_manager.h"
 #include "config.h"
 #include <stdio.h>
 #include <string.h>
 
+// currentRobot is defined in the main .ino, externed here so the command
+// handler can read robot.id at click time
+extern RobotData currentRobot;
+
+// File-static pointer to the error label so the command handler can update it.
+// Created in createRobotScreen, hidden by default, populated/shown on failure.
+// CAVEAT: this is screen-scoped. If a callback ever fires after switching screens,
+// it would touch a dangling pointer. Same shape of bug as the PIN screen issue —
+// currently safe because all our callbacks (LV_EVENT_CLICKED on buttons) fire
+// synchronously from user input on the active screen, not from deferred timers.
+static lv_obj_t *err_label = NULL;
+
 static void onBackPressed(lv_event_t *e) {
+    err_label = NULL;  // null before screen destruction to prevent stale ref
     switchTo(SCREEN_ROBOT_LIST);
 }
 
@@ -52,7 +66,61 @@ static uint32_t getButtonColor(const char* command) {
     return 0x444444;
 }
 
+// ---------------------------------------------------------------------------
+// sendCommand — POST {"command":"...","operator":"helmet-display"}
+//   to /robot/<robotId>/command
+// Returns true on HTTP 2xx, false otherwise.
+// On failure, fills errMsg with a short human-readable reason.
+// ---------------------------------------------------------------------------
+static bool sendCommand(int robotId, const char* command, char* errMsg, size_t errMsgSize) {
+    char url[80];
+    snprintf(url, sizeof(url), "%s/robot/%d/command", API_BASE_URL, robotId);
+
+    char body[80];
+    snprintf(body, sizeof(body), "{\"command\":\"%s\",\"operator\":\"helmet-display\"}", command);
+
+    char response[128];  // response body — we don't use it but httpPost requires a buffer
+    int statusCode = httpPost(url, body, response, sizeof(response));
+
+    if (statusCode >= 200 && statusCode < 300) {
+        errMsg[0] = '\0';
+        return true;
+    }
+
+    // Map status to readable message
+    if (statusCode == -1)        snprintf(errMsg, errMsgSize, "No WiFi");
+    else if (statusCode < 0)     snprintf(errMsg, errMsgSize, "Network error");
+    else if (statusCode == 503)  snprintf(errMsg, errMsgSize, "Robot offline");
+    else if (statusCode == 504)  snprintf(errMsg, errMsgSize, "Robot timeout");
+    else                         snprintf(errMsg, errMsgSize, "Failed (HTTP %d)", statusCode);
+
+    Serial.printf("[Cmd] %s on robot %d failed: %s\n", command, robotId, errMsg);
+    return false;
+}
+
+// Click handler for command buttons. Command string passed via user_data.
+static void onCommandPressed(lv_event_t *e) {
+    const char* command = (const char*)lv_event_get_user_data(e);
+    if (!command) return;
+
+    char errMsg[48];
+    bool ok = sendCommand(currentRobot.id, command, errMsg, sizeof(errMsg));
+
+    if (err_label) {
+        if (ok) {
+            // Clear any previous error on a successful send
+            lv_label_set_text(err_label, "");
+            lv_obj_add_flag(err_label, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_label_set_text(err_label, errMsg);
+            lv_obj_clear_flag(err_label, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+}
+
 void createRobotScreen(const RobotData &robot) {
+    err_label = NULL;  // reset on every screen build
+
     lv_obj_t *scr = lv_scr_act();
     lv_obj_set_style_bg_color(scr, lv_color_hex(COL_BG), 0);
 
@@ -184,42 +252,45 @@ void createRobotScreen(const RobotData &robot) {
     lv_obj_set_style_pad_all(btn_panel, 10, 0);
     lv_obj_clear_flag(btn_panel, LV_OBJ_FLAG_SCROLLABLE);
 
-    // CAPABILITIES header
-    lv_obj_t *cap_title = lv_label_create(btn_panel);
-    lv_label_set_text(cap_title, "CAPABILITIES");
-    lv_obj_set_style_text_color(cap_title, lv_color_hex(COL_ACCENT), 0);
-    lv_obj_set_pos(cap_title, 0, 0);
-
-    // Get command buttons first so we can mark commandable capabilities
+    // Get command buttons first — also determines whether to show capabilities section at all
     CommandButton cmdButtons[MAX_CAPABILITIES];
     int cmdCount = getCommandButtons(robot, cmdButtons, MAX_CAPABILITIES);
 
-    int capY = 20;
-    for (int i = 0; i < robot.capabilityCount; i++) {
-        bool isCommandable = false;
-        for (int j = 0; j < cmdCount; j++) {
-            if (strcasestr(robot.capabilities[i], cmdButtons[j].command) != NULL) {
-                isCommandable = true;
-                break;
-            }
-        }
-        if (strcasestr(robot.capabilities[i], "stop") != NULL && cmdCount > 0) isCommandable = true;
+    // Hide capabilities section when every capability is also a command (redundant info).
+    bool showCapabilities = (cmdCount < robot.capabilityCount);
 
-        lv_obj_t *cap_label = lv_label_create(btn_panel);
-        char cap_buf[40];
-        snprintf(cap_buf, sizeof(cap_buf), "%s %s",
-            isCommandable ? LV_SYMBOL_PLAY : LV_SYMBOL_EYE_OPEN,
-            robot.capabilities[i]);
-        lv_label_set_text(cap_label, cap_buf);
-        lv_obj_set_style_text_color(cap_label,
-            lv_color_hex(isCommandable ? COL_SAFE : 0x8b949e), 0);
-        // Constrain width to panel inner width (168 - pad_all*2 = 148) and wrap
-        lv_obj_set_width(cap_label, 148);
-        lv_label_set_long_mode(cap_label, LV_LABEL_LONG_WRAP);
-        lv_obj_set_pos(cap_label, 0, capY);
-        // Force layout calc so we can read the actual rendered height (handles wrapping)
-        lv_obj_update_layout(cap_label);
-        capY += lv_obj_get_height(cap_label) + 4;
+    int capY = 20;
+    if (showCapabilities) {
+        // CAPABILITIES header
+        lv_obj_t *cap_title = lv_label_create(btn_panel);
+        lv_label_set_text(cap_title, "CAPABILITIES");
+        lv_obj_set_style_text_color(cap_title, lv_color_hex(COL_ACCENT), 0);
+        lv_obj_set_pos(cap_title, 0, 0);
+
+        for (int i = 0; i < robot.capabilityCount; i++) {
+            bool isCommandable = false;
+            for (int j = 0; j < cmdCount; j++) {
+                if (strcasestr(robot.capabilities[i], cmdButtons[j].command) != NULL) {
+                    isCommandable = true;
+                    break;
+                }
+            }
+            if (strcasestr(robot.capabilities[i], "stop") != NULL && cmdCount > 0) isCommandable = true;
+
+            lv_obj_t *cap_label = lv_label_create(btn_panel);
+            char cap_buf[40];
+            snprintf(cap_buf, sizeof(cap_buf), "%s %s",
+                isCommandable ? LV_SYMBOL_PLAY : LV_SYMBOL_EYE_OPEN,
+                robot.capabilities[i]);
+            lv_label_set_text(cap_label, cap_buf);
+            lv_obj_set_style_text_color(cap_label,
+                lv_color_hex(isCommandable ? COL_SAFE : 0x8b949e), 0);
+            lv_obj_set_width(cap_label, 148);
+            lv_label_set_long_mode(cap_label, LV_LABEL_LONG_WRAP);
+            lv_obj_set_pos(cap_label, 0, capY);
+            lv_obj_update_layout(cap_label);
+            capY += lv_obj_get_height(cap_label) + 4;
+        }
     }
 
     // Divider
@@ -237,15 +308,17 @@ void createRobotScreen(const RobotData &robot) {
     lv_obj_set_style_text_color(cmd_title, lv_color_hex(COL_ACCENT), 0);
     lv_obj_set_pos(cmd_title, 0, dividerY + 8);
 
+    int lastBtnY = dividerY + 28;  // tracked so error label can sit below buttons
+
     if (cmdCount == 0) {
         lv_obj_t *no_cmd = lv_label_create(btn_panel);
         lv_label_set_text(no_cmd, "Autonomous mode only");
         lv_obj_set_style_text_color(no_cmd, lv_color_hex(0x8b949e), 0);
         lv_obj_set_style_text_align(no_cmd, LV_TEXT_ALIGN_CENTER, 0);
-        // Constrain width to panel inner width (148) and wrap
         lv_obj_set_width(no_cmd, 148);
         lv_label_set_long_mode(no_cmd, LV_LABEL_LONG_WRAP);
         lv_obj_set_pos(no_cmd, 0, dividerY + 28);
+        // No command buttons → no error label needed
     } else {
         int startY = dividerY + 28;
         int btnH   = 34;
@@ -261,10 +334,38 @@ void createRobotScreen(const RobotData &robot) {
             lv_obj_set_style_border_width(btn, 0, 0);
             lv_obj_set_style_shadow_width(btn, 0, 0);
 
+            // Wire up the click handler. cmdButtons[i].command is in the local
+            // cmdButtons array which lives until createRobotScreen returns.
+            // LVGL stores the pointer, so we need persistent storage.
+            // The capability strings inside robot.capabilities[] are persistent
+            // (currentRobot is a global), but the cmdButtons array isn't.
+            // We sidestep this by passing the static command literals via lookup.
+            const char* cmdLiteral = NULL;
+            if      (strcmp(cmdButtons[i].command, "forward") == 0) cmdLiteral = "forward";
+            else if (strcmp(cmdButtons[i].command, "reverse") == 0) cmdLiteral = "reverse";
+            else if (strcmp(cmdButtons[i].command, "left")    == 0) cmdLiteral = "left";
+            else if (strcmp(cmdButtons[i].command, "right")   == 0) cmdLiteral = "right";
+            else if (strcmp(cmdButtons[i].command, "stop")    == 0) cmdLiteral = "stop";
+            if (cmdLiteral) {
+                lv_obj_add_event_cb(btn, onCommandPressed, LV_EVENT_CLICKED, (void*)cmdLiteral);
+            }
+
             lv_obj_t *btn_label = lv_label_create(btn);
             lv_label_set_text(btn_label, cmdButtons[i].label);
             lv_obj_set_style_text_color(btn_label, lv_color_hex(0xffffff), 0);
             lv_obj_center(btn_label);
+
+            lastBtnY = startY + i * (btnH + btnGap) + btnH;
         }
+
+        // Error label — created once, hidden by default, populated by command handler on failure
+        err_label = lv_label_create(btn_panel);
+        lv_label_set_text(err_label, "");
+        lv_obj_set_style_text_color(err_label, lv_color_hex(COL_DANGER), 0);
+        lv_obj_set_style_text_align(err_label, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_width(err_label, 148);
+        lv_label_set_long_mode(err_label, LV_LABEL_LONG_WRAP);
+        lv_obj_set_pos(err_label, 0, lastBtnY + 6);
+        lv_obj_add_flag(err_label, LV_OBJ_FLAG_HIDDEN);
     }
 }
