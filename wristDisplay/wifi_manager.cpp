@@ -5,6 +5,7 @@
 
 bool wifiConnect(const char* ssid, const char* password, uint32_t timeoutMs) {
     WiFi.begin(ssid, password);
+    WiFi.setSleep(false); //wifi was cutting out and causing ESPNOW packets to disappear
 
     uint32_t start = millis();
     while (WiFi.status() != WL_CONNECTED) {
@@ -19,6 +20,8 @@ bool wifiConnect(const char* ssid, const char* password, uint32_t timeoutMs) {
     Serial.println(WiFi.localIP());
     Serial.print("WRIST MAC: ");
     Serial.println(WiFi.macAddress());
+    Serial.print("[WiFi] Channel: ");
+    Serial.println(WiFi.channel());
     return true;
 }
 

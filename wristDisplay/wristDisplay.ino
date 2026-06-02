@@ -7,6 +7,7 @@
 #include "robot_data.h"
 #include "wifi_manager.h"
 #include "screen_manager.h"
+#include "espnow_manager.h"
 
 // TFT instance — declared here, extern'd in display_init.cpp
 TFT_eSPI tft = TFT_eSPI();
@@ -35,11 +36,18 @@ void setup() {
         Serial.println("[Setup] WiFi failed — continuing anyway");
     }
 
+    if (!espNowInit()) {
+    Serial.println("ESP-NOW init failed");
+    // Decide what to do. For now, continue — wrist still works for HTTP commands.
+    // SCAN button will just print "send failed" when tapped.
+}
+
     // Boot into PIN screen
     switchTo(SCREEN_PIN);
 }
 
 void loop() {
     lv_timer_handler();
+    espNowPoll();
     delay(LVGL_TICK_MS);
 }
