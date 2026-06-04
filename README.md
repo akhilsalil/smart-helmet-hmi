@@ -91,7 +91,13 @@ The wrist display sketch lives in `wristDisplay/`. Required:
 
 ## Building the Helmet
 
-Not started. Architecture defined.
+The helmet sketch lives in `helmet/`. Required:
+
+- Arduino IDE (2.x recommended)
+- **ESP32 board package: Arduino's frozen "Arduino Nano ESP32" core (2.0.18-arduino.5)**, not Espressif's mainline core. Arduino's IDE installs this automatically when "Arduino Nano ESP32" is selected as the board.
+- `config.h` is gitignored — copy `config.example.h` to `config.h` and fill in WiFi credentials and the wrist's MAC address.
+
+**Note on ESP-NOW core asymmetry:** the helmet runs Arduino's frozen 2.0.18-arduino.5 core (the only one currently supported for Nano ESP32), while the wrist runs Espressif's mainline 3.x core. ESP-NOW callback signatures differ between the two — see comments at the top of each board's `espnow_manager.cpp`. Do not copy callbacks between boards without checking.
 
 ## What's Working
 
