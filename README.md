@@ -11,8 +11,8 @@ Built as part of Master project at OTH Regensburg.
 | Component                            | Status              |
 |--------------------------------------|---------------------|
 | Mock Service (Flask API + Dashboard) | Working             |
-| Wrist Display (ESP32 touch UI)       | Core UI working, ESP-NOW pending |
-| Helmet Unit (Nano ESP32 + HuskyLens) | Architecture defined, not built  |
+| Wrist Display (ESP32 touch UI)       | Core flows working |
+| Helmet Unit (Nano ESP32 + HuskyLens) | ESP-NOW transport working, HuskyLens stubbed  |
 | Demo Robot (2WD chassis)             | Not built                        |
 
 ## How It Works
@@ -95,14 +95,16 @@ Not started. Architecture defined.
 
 ## What's Working
 
-- Flask mock API with manager dashboard, 2 robots, command endpoint
+- Flask mock API with manager dashboard, 3 robots, command endpoint
 - Wrist display: PIN authentication, robot list (fetched from `/robots`), robot detail screen with status colour mapping and dynamic command buttons
 - Display → Flask command POST end-to-end (worker taps a command, Flask receives, dashboard updates)
+- ESP-NOW scan flow end-to-end: wrist SCAN button sends request to helmet, helmet responds with a robot ID (currently stubbed to return Amazon bot after a 2s simulated delay), wrist switches to that robot's detail screen
+- "Scanning..." modal overlay on the wrist during the scan wait, with 6s timeout and error states ("No response from helmet" / "Robot not recognised" / "Failed to send")
 
 ## What's Planned
 
-- ESP-NOW scan workflow (wrist → helmet → wrist)
-- HuskyLens integration on helmet
+- HuskyLens integration on helmet (replace the stubbed scan response with real I2C reads)
 - Safety bubble (robot ESP-NOW beacons → helmet RSSI-triggered alarm)
-- Demo robot firmware (motor control via HTTP commands from Flask)
+- Demo robot firmware (motor control via HTTP commands from Flask) — in development by a group member
+- Dobot Magician Go integration as a second commandable robot
 - Robot list refresh / live status updates on wrist display
