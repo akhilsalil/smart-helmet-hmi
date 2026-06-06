@@ -60,14 +60,14 @@ static void scanShowMessageAndDismiss(const char* text, uint32_t holdMs) {
     if (!scan_overlay_lbl) return;
     lv_label_set_text(scan_overlay_lbl, text);
 
-    // Cancel the original timeout and replace with a short auto-dismiss
+    // Cancel any existing timer and replace with a short hold-then-dismiss
     if (scan_timeout_timer) {
         lv_timer_del(scan_timeout_timer);
         scan_timeout_timer = nullptr;
     }
     scan_timeout_timer = lv_timer_create([](lv_timer_t *t) {
+        // Just dismiss — dismissScanOverlay handles deleting the timer
         dismissScanOverlay();
-        lv_timer_del(t);
     }, holdMs, NULL);
     lv_timer_set_repeat_count(scan_timeout_timer, 1);
 }
@@ -78,15 +78,19 @@ static void onScanTimeout(lv_timer_t *t) {
     if (scan_overlay_lbl) {
         lv_label_set_text(scan_overlay_lbl, "No response from helmet");
     }
-    // Briefly hold the message, then dismiss
-    if (scan_timeout_timer) {
-        lv_timer_del(scan_timeout_timer);
-    }
+    // The 6s timeout timer is about to be replaced. Don't delete it here —
+    // lv_timer_create below will assign a new timer to scan_timeout_timer,
+    // but the old (currently-firing) timer needs to clean itself up safely.
+    // Setting repeat_count to 0 prevents it from firing again, then we
+    // reassign the variable to a new timer for the dismiss.
+    lv_timer_t *old = scan_timeout_timer;
     scan_timeout_timer = lv_timer_create([](lv_timer_t *t2) {
         dismissScanOverlay();
-        lv_timer_del(t2);
     }, 1500, NULL);
     lv_timer_set_repeat_count(scan_timeout_timer, 1);
+    // Delete the original timeout timer after we've reassigned the variable.
+    // Safe because we no longer hold any references to it.
+    if (old) lv_timer_del(old);
 }
 
 // Build a modal full-screen overlay with "Scanning..." text.
