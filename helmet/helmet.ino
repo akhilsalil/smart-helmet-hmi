@@ -2,6 +2,7 @@
 #include "wifi_manager.h"
 #include "espnow_manager.h"
 #include <WiFi.h>
+#include "huskylens_reader.h"
 
 void setup() {
     Serial.begin(115200);
@@ -27,6 +28,11 @@ void setup() {
             digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
             delay(100);   // fast blink = error state
         }
+    }
+
+    if (!huskyLensInit()) {
+    Serial.println("HuskyLens init failed — scans will always timeout. Continuing.");
+    // Don't halt — wrist will get SCAN_FAILED on every scan, demo still partially works
     }
 
     Serial.println("=== Ready ===");

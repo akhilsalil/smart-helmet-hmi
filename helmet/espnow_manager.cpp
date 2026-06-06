@@ -7,14 +7,16 @@
 #include <esp_now.h>
 #include <esp_wifi.h>
 #include <WiFi.h>
+#include "huskylens_reader.h"
 
 static uint8_t wristMac[] = WRIST_MAC;
 
 // Pending scan state — set by recv callback, consumed by loop()
 static bool     scanPending     = false;
 static uint32_t scanRequestedAt = 0;
-static const uint32_t SCAN_STUB_DELAY_MS = 2000;
-static const uint8_t  STUB_ROBOT_ID      = 2;   // Amazon bot — has command buttons
+static const uint32_t SCAN_TIMEOUT_MS    = 3000;   // give up after 3s of no detection
+static const uint32_t SCAN_POLL_INTERVAL = 100;    // poll HuskyLens every 100ms
+static uint32_t       lastPollAt         = 0;
 
 static void onDataRecv(const uint8_t *mac, const uint8_t *data, int len) {
     if (len != sizeof(EspNowMessage)) {
@@ -29,11 +31,10 @@ static void onDataRecv(const uint8_t *mac, const uint8_t *data, int len) {
                   mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
     if (msg.msgType == ESPNOW_MSG_SCAN_REQUEST) {
-        // Don't send from inside the callback. Set a flag, let loop() handle it
-        // after the simulated delay.
-        scanPending     = true;
-        scanRequestedAt = millis();
-        Serial.println("[Scan] Request received, will respond after stub delay");
+    scanPending     = true;
+    scanRequestedAt = millis();
+    lastPollAt      = 0;   // <-- add this line: forces immediate poll on next loop
+    Serial.println("[Scan] Request received, polling HuskyLens");
     }
 }
 
@@ -70,16 +71,32 @@ bool espNowSendToWrist(const EspNowMessage &msg) {
 
 void espNowProcessPendingScan() {
     if (!scanPending) return;
-    if (millis() - scanRequestedAt < SCAN_STUB_DELAY_MS) return;
 
-    // Stub: pretend HuskyLens detected the Amazon bot.
-    // When HuskyLens is wired, this is where we'd call huskyLensRead()
-    // and use the actual recognised ID. On no-match, send SCAN_FAILED.
+    uint32_t elapsed = millis() - scanRequestedAt;
+
+    // Timeout — no detection within window, send SCAN_FAILED
+    if (elapsed >= SCAN_TIMEOUT_MS) {
+        Serial.println("[Scan] Timeout — no tag detected");
+        EspNowMessage reply = {};
+        reply.msgType = ESPNOW_MSG_SCAN_FAILED;
+        reply.robotId = 0;
+        espNowSendToWrist(reply);
+        scanPending = false;
+        return;
+    }
+
+    // Throttle polling — only ask HuskyLens every SCAN_POLL_INTERVAL ms
+    if (millis() - lastPollAt < SCAN_POLL_INTERVAL) return;
+    lastPollAt = millis();
+
+    int id = huskyLensReadLargestTagId();
+    if (id < 0) return;   // nothing this poll, keep waiting
+
+    // First detection wins. Send result back and clear scan state.
+    Serial.printf("[Scan] HuskyLens detected tag ID=%d (after %lums)\n", id, elapsed);
     EspNowMessage reply = {};
     reply.msgType = ESPNOW_MSG_SCAN_RESULT;
-    reply.robotId = STUB_ROBOT_ID;
-    Serial.printf("[Scan] Sending stubbed result: robotId=%d\n", reply.robotId);
+    reply.robotId = (uint8_t)id;
     espNowSendToWrist(reply);
-
     scanPending = false;
 }
