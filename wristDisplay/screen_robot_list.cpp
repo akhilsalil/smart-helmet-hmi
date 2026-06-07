@@ -4,6 +4,7 @@
 #include "wifi_manager.h"
 #include "config.h"
 #include "espnow_manager.h"
+#include "auth.h"
 
 
 #define COL_BG        0x0d1117
@@ -190,6 +191,12 @@ static void onScanPressed(lv_event_t *e) {
     }
 }
 
+static void onLogoutPressed(lv_event_t *e) {
+    Serial.println("[Auth] Logout pressed");
+    currentRole = ROLE_NONE;
+    switchTo(SCREEN_PIN);
+}
+
 void createRobotListScreen() {
 
     // Register ESP-NOW scan result handler. Safe to call repeatedly — last call wins.
@@ -208,7 +215,10 @@ void createRobotListScreen() {
     lv_obj_set_style_radius(header, 0, 0);
     lv_obj_clear_flag(header, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_t *title = lv_label_create(header);
-    lv_label_set_text(title, "SMART HELMET HMI");
+    const char* roleStr = (currentRole == ROLE_OPERATOR) ? "OPERATOR" : "VIEWER";
+    char titleBuf[48];
+    snprintf(titleBuf, sizeof(titleBuf), "SMART HELMET HMI - %s", roleStr);
+    lv_label_set_text(title, titleBuf);
     lv_obj_set_style_text_color(title, lv_color_hex(COL_ACCENT), 0);
     lv_obj_align(title, LV_ALIGN_LEFT_MID, 12, 0);
     lv_obj_t *sub = lv_label_create(header);
@@ -235,6 +245,22 @@ void createRobotListScreen() {
     lv_label_set_text(scanLabel, LV_SYMBOL_EYE_OPEN " SCAN");
     lv_obj_set_style_text_color(scanLabel, lv_color_hex(0xffffff), 0);
     lv_obj_center(scanLabel);
+
+    // Logout button — bottom-right corner of screen
+    lv_obj_t *logoutBtn = lv_btn_create(scr);
+    lv_obj_set_size(logoutBtn, 130, 36);
+    lv_obj_set_pos(logoutBtn, SCREEN_WIDTH - 140, SCREEN_HEIGHT - 46);
+    lv_obj_set_style_bg_color(logoutBtn, lv_color_hex(0xda3633), 0);
+    lv_obj_set_style_bg_color(logoutBtn, lv_color_hex(0xff5252), LV_STATE_PRESSED);
+    lv_obj_set_style_radius(logoutBtn, 8, 0);
+    lv_obj_set_style_border_width(logoutBtn, 0, 0);
+    lv_obj_set_style_shadow_width(logoutBtn, 0, 0);
+    lv_obj_add_event_cb(logoutBtn, onLogoutPressed, LV_EVENT_CLICKED, NULL);
+
+    lv_obj_t *logoutLabel = lv_label_create(logoutBtn);
+    lv_label_set_text(logoutLabel, LV_SYMBOL_POWER " LOGOUT");
+    lv_obj_set_style_text_color(logoutLabel, lv_color_hex(0xffffff), 0);
+    lv_obj_center(logoutLabel);
 
     // Fetch robot list
     char response[1024];

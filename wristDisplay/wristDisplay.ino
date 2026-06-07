@@ -8,6 +8,7 @@
 #include "wifi_manager.h"
 #include "screen_manager.h"
 #include "espnow_manager.h"
+#include "auth.h"
 
 // TFT instance — declared here, extern'd in display_init.cpp
 TFT_eSPI tft = TFT_eSPI();
@@ -18,6 +19,8 @@ RobotData currentRobot;
 // Global robot list — populated on robot list screen load
 RobotData robotList[MAX_ROBOTS];
 int robotListCount = 0;
+
+UserRole currentRole = ROLE_NONE;
 
 void setup() {
     Serial.begin(115200);

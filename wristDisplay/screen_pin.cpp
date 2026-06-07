@@ -2,6 +2,7 @@
 #include "screen_manager.h"
 #include "config.h"
 #include <string.h>
+#include "auth.h"
 
 // --- Colours ---
 #define COL_BG          0x0d1117
@@ -41,8 +42,15 @@ static void updateDots() {
 // --- Check entered PIN ---
 static void checkPin() {
     enteredPin[pinLength] = '\0';
-    if (strcmp(enteredPin, WORKER_PIN) == 0) {
-        lv_label_set_text(status_label, "Access granted");
+
+    bool isOperator = (strcmp(enteredPin, OPERATOR_PIN) == 0);
+    bool isViewer   = (strcmp(enteredPin, VIEWER_PIN) == 0);
+
+    if (isOperator || isViewer) {
+        currentRole = isOperator ? ROLE_OPERATOR : ROLE_VIEWER;
+        const char* msg = isOperator ? "Access granted — OPERATOR"
+                                     : "Access granted — VIEWER";
+        lv_label_set_text(status_label, msg);
         lv_obj_set_style_text_color(status_label, lv_color_hex(COL_SUCCESS), 0);
         // Small delay so user sees the success state, then switch
         lv_timer_t *timer = lv_timer_create([](lv_timer_t *t) {
@@ -52,7 +60,6 @@ static void checkPin() {
     } else {
         lv_label_set_text(status_label, "Wrong PIN — try again");
         lv_obj_set_style_text_color(status_label, lv_color_hex(COL_ERROR), 0);
-        // Reset after short delay
         lv_timer_t *timer = lv_timer_create([](lv_timer_t *t) {
             pinLength = 0;
             memset(enteredPin, 0, sizeof(enteredPin));

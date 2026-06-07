@@ -4,6 +4,7 @@
 #include "config.h"
 #include <stdio.h>
 #include <string.h>
+#include "auth.h"
 
 // currentRobot is defined in the main .ino, externed here so the command
 // handler can read robot.id at click time
@@ -137,7 +138,10 @@ void createRobotScreen(const RobotData &robot) {
     lv_obj_clear_flag(header, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *title = lv_label_create(header);
-    lv_label_set_text(title, "SMART HELMET HMI");
+    const char* roleStr = (currentRole == ROLE_OPERATOR) ? "OPERATOR" : "VIEWER";
+    char titleBuf[48];
+    snprintf(titleBuf, sizeof(titleBuf), "SMART HELMET HMI - %s", roleStr);
+    lv_label_set_text(title, titleBuf);
     lv_obj_set_style_text_color(title, lv_color_hex(COL_ACCENT), 0);
     lv_obj_align(title, LV_ALIGN_LEFT_MID, 12, 0);
 
@@ -310,62 +314,64 @@ void createRobotScreen(const RobotData &robot) {
 
     int lastBtnY = dividerY + 28;  // tracked so error label can sit below buttons
 
-    if (cmdCount == 0) {
-        lv_obj_t *no_cmd = lv_label_create(btn_panel);
-        lv_label_set_text(no_cmd, "Autonomous mode only");
-        lv_obj_set_style_text_color(no_cmd, lv_color_hex(0x8b949e), 0);
-        lv_obj_set_style_text_align(no_cmd, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_set_width(no_cmd, 148);
-        lv_label_set_long_mode(no_cmd, LV_LABEL_LONG_WRAP);
-        lv_obj_set_pos(no_cmd, 0, dividerY + 28);
-        // No command buttons → no error label needed
+    if (currentRole != ROLE_OPERATOR) {
+    // Viewer: no buttons, just a notice
+    lv_obj_t *view_only = lv_label_create(btn_panel);
+    lv_label_set_text(view_only, "View only");
+    lv_obj_set_style_text_color(view_only, lv_color_hex(0x8b949e), 0);
+    lv_obj_set_style_text_align(view_only, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(view_only, 148);
+    lv_label_set_long_mode(view_only, LV_LABEL_LONG_WRAP);
+    lv_obj_set_pos(view_only, 0, dividerY + 28);
+    } else if (cmdCount == 0) {
+     lv_obj_t *no_cmd = lv_label_create(btn_panel);
+     lv_label_set_text(no_cmd, "Autonomous mode only");
+     lv_obj_set_style_text_color(no_cmd, lv_color_hex(0x8b949e), 0);
+     lv_obj_set_style_text_align(no_cmd, LV_TEXT_ALIGN_CENTER, 0);
+     lv_obj_set_width(no_cmd, 148);
+     lv_label_set_long_mode(no_cmd, LV_LABEL_LONG_WRAP);
+     lv_obj_set_pos(no_cmd, 0, dividerY + 28);
     } else {
-        int startY = dividerY + 28;
-        int btnH   = 34;
-        int btnGap = 5;
+     int startY = dividerY + 28;
+     int btnH   = 34;
+     int btnGap = 5;
 
-        for (int i = 0; i < cmdCount; i++) {
-            lv_obj_t *btn = lv_btn_create(btn_panel);
-            lv_obj_set_size(btn, 144, btnH);
-            lv_obj_set_pos(btn, 0, startY + i * (btnH + btnGap));
-            lv_obj_set_style_bg_color(btn, lv_color_hex(getButtonColor(cmdButtons[i].command)), 0);
-            lv_obj_set_style_bg_color(btn, lv_color_hex(getButtonColor(cmdButtons[i].command) + 0x222222), LV_STATE_PRESSED);
-            lv_obj_set_style_radius(btn, 6, 0);
-            lv_obj_set_style_border_width(btn, 0, 0);
-            lv_obj_set_style_shadow_width(btn, 0, 0);
+    for (int i = 0; i < cmdCount; i++) {
+        lv_obj_t *btn = lv_btn_create(btn_panel);
+        lv_obj_set_size(btn, 144, btnH);
+        lv_obj_set_pos(btn, 0, startY + i * (btnH + btnGap));
+        lv_obj_set_style_bg_color(btn, lv_color_hex(getButtonColor(cmdButtons[i].command)), 0);
+        lv_obj_set_style_bg_color(btn, lv_color_hex(getButtonColor(cmdButtons[i].command) + 0x222222), LV_STATE_PRESSED);
+        lv_obj_set_style_radius(btn, 6, 0);
+        lv_obj_set_style_border_width(btn, 0, 0);
+        lv_obj_set_style_shadow_width(btn, 0, 0);
 
-            // Wire up the click handler. cmdButtons[i].command is in the local
-            // cmdButtons array which lives until createRobotScreen returns.
-            // LVGL stores the pointer, so we need persistent storage.
-            // The capability strings inside robot.capabilities[] are persistent
-            // (currentRobot is a global), but the cmdButtons array isn't.
-            // We sidestep this by passing the static command literals via lookup.
-            const char* cmdLiteral = NULL;
-            if      (strcmp(cmdButtons[i].command, "forward") == 0) cmdLiteral = "forward";
-            else if (strcmp(cmdButtons[i].command, "reverse") == 0) cmdLiteral = "reverse";
-            else if (strcmp(cmdButtons[i].command, "left")    == 0) cmdLiteral = "left";
-            else if (strcmp(cmdButtons[i].command, "right")   == 0) cmdLiteral = "right";
-            else if (strcmp(cmdButtons[i].command, "stop")    == 0) cmdLiteral = "stop";
-            if (cmdLiteral) {
-                lv_obj_add_event_cb(btn, onCommandPressed, LV_EVENT_CLICKED, (void*)cmdLiteral);
-            }
-
-            lv_obj_t *btn_label = lv_label_create(btn);
-            lv_label_set_text(btn_label, cmdButtons[i].label);
-            lv_obj_set_style_text_color(btn_label, lv_color_hex(0xffffff), 0);
-            lv_obj_center(btn_label);
-
-            lastBtnY = startY + i * (btnH + btnGap) + btnH;
+        const char* cmdLiteral = NULL;
+        if      (strcmp(cmdButtons[i].command, "forward") == 0) cmdLiteral = "forward";
+        else if (strcmp(cmdButtons[i].command, "reverse") == 0) cmdLiteral = "reverse";
+        else if (strcmp(cmdButtons[i].command, "left")    == 0) cmdLiteral = "left";
+        else if (strcmp(cmdButtons[i].command, "right")   == 0) cmdLiteral = "right";
+        else if (strcmp(cmdButtons[i].command, "stop")    == 0) cmdLiteral = "stop";
+        if (cmdLiteral) {
+            lv_obj_add_event_cb(btn, onCommandPressed, LV_EVENT_CLICKED, (void*)cmdLiteral);
         }
 
-        // Error label — created once, hidden by default, populated by command handler on failure
-        err_label = lv_label_create(btn_panel);
-        lv_label_set_text(err_label, "");
-        lv_obj_set_style_text_color(err_label, lv_color_hex(COL_DANGER), 0);
-        lv_obj_set_style_text_align(err_label, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_set_width(err_label, 148);
-        lv_label_set_long_mode(err_label, LV_LABEL_LONG_WRAP);
-        lv_obj_set_pos(err_label, 0, lastBtnY + 6);
-        lv_obj_add_flag(err_label, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_t *btn_label = lv_label_create(btn);
+        lv_label_set_text(btn_label, cmdButtons[i].label);
+        lv_obj_set_style_text_color(btn_label, lv_color_hex(0xffffff), 0);
+        lv_obj_center(btn_label);
+
+        lastBtnY = startY + i * (btnH + btnGap) + btnH;
     }
+
+    // Error label (only relevant for operator since only they can fail commands)
+    err_label = lv_label_create(btn_panel);
+    lv_label_set_text(err_label, "");
+    lv_obj_set_style_text_color(err_label, lv_color_hex(COL_DANGER), 0);
+    lv_obj_set_style_text_align(err_label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(err_label, 148);
+    lv_label_set_long_mode(err_label, LV_LABEL_LONG_WRAP);
+    lv_obj_set_pos(err_label, 0, lastBtnY + 6);
+    lv_obj_add_flag(err_label, LV_OBJ_FLAG_HIDDEN);
+}
 }
