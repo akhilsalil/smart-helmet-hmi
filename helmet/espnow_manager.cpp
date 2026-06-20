@@ -8,6 +8,7 @@
 #include <esp_wifi.h>
 #include <WiFi.h>
 #include "huskylens_reader.h"
+#include "safety_bubble.h"
 
 static uint8_t wristMac[] = WRIST_MAC;
 
@@ -18,23 +19,31 @@ static const uint32_t SCAN_TIMEOUT_MS    = 3000;   // give up after 3s of no det
 static const uint32_t SCAN_POLL_INTERVAL = 100;    // poll HuskyLens every 100ms
 static uint32_t       lastPollAt         = 0;
 
-static void onDataRecv(const uint8_t *mac, const uint8_t *data, int len) {
-    if (len != sizeof(EspNowMessage)) {
-        Serial.printf("[ESP-NOW] Bad packet size: %d (expected %d)\n",
-                      len, sizeof(EspNowMessage));
-        return;
-    }
-    EspNowMessage msg;
-    memcpy(&msg, data, sizeof(msg));
-    Serial.printf("[ESP-NOW] Got msgType=%d robotId=%d from %02X:%02X:%02X:%02X:%02X:%02X\n",
-                  msg.msgType, msg.robotId,
-                  mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+// Pending scanner beacon — set by recv callback, consumed by loop()
+static bool          beaconPending    = false;
+static ScannerBeacon pendingBeacon    = {};
 
-    if (msg.msgType == ESPNOW_MSG_SCAN_REQUEST) {
-    scanPending     = true;
-    scanRequestedAt = millis();
-    lastPollAt      = 0;   // <-- add this line: forces immediate poll on next loop
-    Serial.println("[Scan] Request received, polling HuskyLens");
+static void onDataRecv(const uint8_t *mac, const uint8_t *data, int len) {
+    if (len == sizeof(EspNowMessage)) {
+        EspNowMessage msg;
+        memcpy(&msg, data, sizeof(msg));
+        Serial.printf("[ESP-NOW] Got msgType=%d robotId=%d\n",
+                      msg.msgType, msg.robotId);
+        if (msg.msgType == ESPNOW_MSG_SCAN_REQUEST) {
+            scanPending     = true;
+            scanRequestedAt = millis();
+            lastPollAt      = 0;
+            Serial.println("[Scan] Request received, polling HuskyLens");
+        }
+    } else if (len == sizeof(ScannerBeacon)) {
+        ScannerBeacon beacon;
+        memcpy(&beacon, data, sizeof(beacon));
+        if (beacon.msgType == ESPNOW_MSG_SCANNER_BEACON) {
+            pendingBeacon = beacon;
+            beaconPending = true;
+        }
+    } else {
+        // foreign traffic — silently ignore, no log spam
     }
 }
 
@@ -52,6 +61,7 @@ bool espNowInit() {
     }
     esp_now_register_recv_cb(onDataRecv);
     esp_now_register_send_cb(onDataSent);
+
     esp_now_peer_info_t peer = {};
     memcpy(peer.peer_addr, wristMac, 6);
     peer.channel = WIFI_CHANNEL;
@@ -61,6 +71,18 @@ bool espNowInit() {
         return false;
     }
     Serial.println("[ESP-NOW] Initialised, wrist added as peer");
+
+    // Scanner board peer
+    uint8_t scannerMac[] = { 0xB0, 0xCB, 0xD8, 0xC6, 0xAF, 0x68 };
+    esp_now_peer_info_t scannerPeer = {};
+    memcpy(scannerPeer.peer_addr, scannerMac, 6);
+    scannerPeer.channel = WIFI_CHANNEL;
+    scannerPeer.encrypt = false;
+    if (esp_now_add_peer(&scannerPeer) != ESP_OK) {
+        Serial.println("[ESP-NOW] Failed to add scanner as peer");
+        return false;
+    }
+
     return true;
 }
 
@@ -99,4 +121,31 @@ void espNowProcessPendingScan() {
     reply.robotId = (uint8_t)id;
     espNowSendToWrist(reply);
     scanPending = false;
+}
+
+void espNowProcessPendingBeacon() {
+    if (!beaconPending) return;
+    beaconPending = false;
+    safetyBubbleOnBeacon(pendingBeacon.robotId,
+                         pendingBeacon.dangerLevel,
+                         pendingBeacon.rssi);
+}
+
+bool espNowSendAlarmState(bool active, uint8_t robotId, uint8_t dangerLevel) {
+    AlarmStateMsg msg;
+    msg.msgType     = ESPNOW_MSG_ALARM_STATE;
+    msg.alarmActive = active ? 1 : 0;
+    msg.robotId     = robotId;
+    msg.dangerLevel = dangerLevel;
+
+    Serial.printf("[ESP-NOW] Sending AlarmState: active=%d robotId=%d danger=%d to %02X:%02X:%02X:%02X:%02X:%02X\n",
+                  msg.alarmActive, msg.robotId, msg.dangerLevel,
+                  wristMac[0], wristMac[1], wristMac[2], wristMac[3], wristMac[4], wristMac[5]);
+
+
+    esp_err_t result = esp_now_send(wristMac, (const uint8_t*)&msg, sizeof(msg));
+
+    Serial.printf("[ESP-NOW] Send result: %s\n", result == ESP_OK ? "OK (queued)" : "FAILED");
+
+    return result == ESP_OK;
 }
