@@ -9,6 +9,7 @@
 #include "screen_manager.h"
 #include "espnow_manager.h"
 #include "auth.h"
+#include "vib_motor.h"
 
 // TFT instance — declared here, extern'd in display_init.cpp
 TFT_eSPI tft = TFT_eSPI();
@@ -30,6 +31,8 @@ void setup() {
     initDisplay();
     initTouch();
 
+    vibMotorInit();
+
     // Connect to WiFi before any screen loads
     // Shows nothing on screen during this — happens fast (<2s on good hotspot)
     Serial.println("[Setup] Connecting to WiFi...");
@@ -43,7 +46,9 @@ void setup() {
     Serial.println("ESP-NOW init failed");
     // Decide what to do. For now, continue — wrist still works for HTTP commands.
     // SCAN button will just print "send failed" when tapped.
-}
+    } else {
+      espNowSetAlarmStateHandler(vibMotorOnAlarmState);
+    }
 
     // Boot into PIN screen
     switchTo(SCREEN_PIN);
@@ -52,5 +57,6 @@ void setup() {
 void loop() {
     lv_timer_handler();
     espNowPoll();
+    vibMotorUpdate();
     delay(LVGL_TICK_MS);
 }

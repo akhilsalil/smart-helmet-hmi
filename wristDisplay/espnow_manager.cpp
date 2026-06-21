@@ -10,6 +10,7 @@
 
 static uint8_t helmetMac[] = HELMET_MAC;
 static EspNowScanResultCb scanResultHandler = nullptr;
+static EspNowAlarmStateCb alarmStateHandler = nullptr;
 
 // Pending message buffer — set by recv callback, consumed by espNowPoll().
 // volatile because it's written from one thread and read from another.
@@ -17,28 +18,38 @@ static volatile bool msgPending = false;
 static EspNowMessage pendingMsg = {};
 
 static void onDataRecv(const esp_now_recv_info_t *info, const uint8_t *data, int len) {
-    if (len != sizeof(EspNowMessage)) {
-        Serial.printf("[ESP-NOW] Bad packet size: %d (expected %d)\n",
-                      len, sizeof(EspNowMessage));
+    const uint8_t *mac = info->src_addr;
+
+    // Branch by packet size first — different message types are different
+    // struct sizes. EspNowMessage=2 bytes, AlarmStateMsg=4 bytes.
+    if (len == sizeof(EspNowMessage)) {
+        EspNowMessage msg;
+        memcpy(&msg, data, sizeof(msg));
+        Serial.printf("[ESP-NOW] Got msgType=%d robotId=%d from %02X:%02X:%02X:%02X:%02X:%02X\n",
+                      msg.msgType, msg.robotId,
+                      mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+
+        if ((msg.msgType == ESPNOW_MSG_SCAN_RESULT ||
+             msg.msgType == ESPNOW_MSG_SCAN_FAILED) && scanResultHandler) {
+            scanResultHandler(msg);
+        }
         return;
     }
-    EspNowMessage msg;
-    memcpy(&msg, data, sizeof(msg));
-    const uint8_t *mac = info->src_addr;
-    Serial.printf("[ESP-NOW] Got msgType=%d robotId=%d from %02X:%02X:%02X:%02X:%02X:%02X\n",
-                  msg.msgType, msg.robotId,
-                  mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
-    // Dispatch scan results to the registered handler (if any).
-    // Handler runs in ESP-NOW task context — must be quick and safe to call
-    // from here. Touching LVGL from this context is technically unsafe
-    // (LVGL is not thread-safe by default) but in practice works on ESP32
-    // because LVGL's internal locks handle it. If we see weirdness, queue
-    // to a flag-and-process pattern like the helmet does.
-    if ((msg.msgType == ESPNOW_MSG_SCAN_RESULT ||
-         msg.msgType == ESPNOW_MSG_SCAN_FAILED) && scanResultHandler) {
-        scanResultHandler(msg);
+    if (len == sizeof(AlarmStateMsg)) {
+        AlarmStateMsg msg;
+        memcpy(&msg, data, sizeof(msg));
+        Serial.printf("[ESP-NOW] Got ALARM_STATE active=%d robotId=%d danger=%d from %02X:%02X:%02X:%02X:%02X:%02X\n",
+                      msg.alarmActive, msg.robotId, msg.dangerLevel,
+                      mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+
+        if (msg.msgType == ESPNOW_MSG_ALARM_STATE && alarmStateHandler) {
+            alarmStateHandler(msg);
+        }
+        return;
     }
+
+    Serial.printf("[ESP-NOW] Unrecognised packet size: %d\n", len);
 }
 
 static void onDataSent(const wifi_tx_info_t *tx_info, esp_now_send_status_t status) {
@@ -83,6 +94,10 @@ bool espNowSendScanRequest() {
 
 void espNowSetScanResultHandler(EspNowScanResultCb cb) {
     scanResultHandler = cb;
+}
+
+void espNowSetAlarmStateHandler(EspNowAlarmStateCb cb) {
+    alarmStateHandler = cb;
 }
 
 void espNowPoll() {

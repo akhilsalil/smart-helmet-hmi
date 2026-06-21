@@ -17,6 +17,20 @@ typedef struct {
 #define ESPNOW_MSG_SCAN_RESULT   2
 #define ESPNOW_MSG_SCAN_FAILED   3
 
+// ---------------------------------------------------------------------------
+// Alarm state message — sent from helmet's safety_bubble.cpp on alarm
+// entry/exit. 4 bytes, distinguishable from EspNowMessage by size alone
+// (2 vs 4) in onDataRecv.
+// ---------------------------------------------------------------------------
+typedef struct {
+    uint8_t msgType;      // 30 = alarm state
+    uint8_t alarmActive;  // 1 = entering alarm, 0 = clearing
+    uint8_t robotId;
+    uint8_t dangerLevel;  // 0=safe, 1=caution, 2=sensitive, 3=high
+} __attribute__((packed)) AlarmStateMsg;
+
+#define ESPNOW_MSG_ALARM_STATE 30
+
 // Initialise ESP-NOW. Call AFTER WiFi connects. Adds the helmet as a peer.
 // Returns true on success.
 bool espNowInit();
@@ -30,6 +44,12 @@ bool espNowSendScanRequest();
 // Signature receives the full message so the handler can act on msgType.
 typedef void (*EspNowScanResultCb)(const EspNowMessage &msg);
 void espNowSetScanResultHandler(EspNowScanResultCb cb);
+
+// Registered by vib_motor.cpp. Called from ESP-NOW receive context whenever
+// an alarm-state message arrives from the helmet.
+typedef void (*EspNowAlarmStateCb)(const AlarmStateMsg &msg);
+void espNowSetAlarmStateHandler(EspNowAlarmStateCb cb);
+
 
 // Call from loop(). Processes any pending received messages on the main
 // thread. Required because ESP-NOW callbacks run in a separate task and
