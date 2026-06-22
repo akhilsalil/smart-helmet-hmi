@@ -263,7 +263,7 @@ void createRobotListScreen() {
     lv_obj_center(logoutLabel);
 
     // Fetch robot list
-    char response[1024];
+    char response[2048];
     char url[64];
     snprintf(url, sizeof(url), API_BASE_URL "/robots");
     int statusCode = httpGet(url, response, sizeof(response));

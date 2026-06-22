@@ -17,8 +17,13 @@ extern RobotData currentRobot;
 // currently safe because all our callbacks (LV_EVENT_CLICKED on buttons) fire
 // synchronously from user input on the active screen, not from deferred timers.
 static lv_obj_t *err_label = NULL;
+static lv_timer_t *cmd_feedback_timer = NULL;
 
 static void onBackPressed(lv_event_t *e) {
+    if (cmd_feedback_timer) {
+        lv_timer_del(cmd_feedback_timer);
+        cmd_feedback_timer = NULL;
+    }
     err_label = NULL;  // null before screen destruction to prevent stale ref
     switchTo(SCREEN_ROBOT_LIST);
 }
@@ -37,6 +42,7 @@ static void onBackPressed(lv_event_t *e) {
 #define COL_BTN_LEFT    0x1f6feb
 #define COL_BTN_RIGHT   0x1f6feb
 #define COL_BTN_STOP    0xda3633
+#define COL_BTN_PICK    0x9c27b0
 
 static uint32_t getDangerColor(int level) {
     switch (level) {
@@ -64,6 +70,7 @@ static uint32_t getButtonColor(const char* command) {
     if (strcmp(command, "left")    == 0) return COL_BTN_LEFT;
     if (strcmp(command, "right")   == 0) return COL_BTN_RIGHT;
     if (strcmp(command, "stop")    == 0) return COL_BTN_STOP;
+    if (strcmp(command, "pick_object") == 0) return COL_BTN_PICK;
     return 0x444444;
 }
 
@@ -99,6 +106,13 @@ static bool sendCommand(int robotId, const char* command, char* errMsg, size_t e
     return false;
 }
 
+static void hideCommandFeedback(lv_timer_t *t) {
+    if (err_label) {
+        lv_obj_add_flag(err_label, LV_OBJ_FLAG_HIDDEN);
+    }
+    cmd_feedback_timer = NULL;
+}
+
 // Click handler for command buttons. Command string passed via user_data.
 static void onCommandPressed(lv_event_t *e) {
     const char* command = (const char*)lv_event_get_user_data(e);
@@ -107,20 +121,29 @@ static void onCommandPressed(lv_event_t *e) {
     char errMsg[48];
     bool ok = sendCommand(currentRobot.id, command, errMsg, sizeof(errMsg));
 
-    if (err_label) {
-        if (ok) {
-            // Clear any previous error on a successful send
-            lv_label_set_text(err_label, "");
-            lv_obj_add_flag(err_label, LV_OBJ_FLAG_HIDDEN);
-        } else {
-            lv_label_set_text(err_label, errMsg);
-            lv_obj_clear_flag(err_label, LV_OBJ_FLAG_HIDDEN);
-        }
+    if (!err_label) return;
+
+    if (cmd_feedback_timer) {
+        lv_timer_del(cmd_feedback_timer);
+        cmd_feedback_timer = NULL;
+    }
+
+    if (ok) {
+        lv_label_set_text(err_label, "Sent " LV_SYMBOL_OK);
+        lv_obj_set_style_text_color(err_label, lv_color_hex(COL_SAFE), 0);
+        lv_obj_clear_flag(err_label, LV_OBJ_FLAG_HIDDEN);
+        cmd_feedback_timer = lv_timer_create(hideCommandFeedback, 1200, NULL);
+        lv_timer_set_repeat_count(cmd_feedback_timer, 1);
+    } else {
+        lv_label_set_text(err_label, errMsg);
+        lv_obj_set_style_text_color(err_label, lv_color_hex(COL_DANGER), 0);
+        lv_obj_clear_flag(err_label, LV_OBJ_FLAG_HIDDEN);
     }
 }
 
 void createRobotScreen(const RobotData &robot) {
     err_label = NULL;  // reset on every screen build
+    cmd_feedback_timer = NULL;
 
     lv_obj_t *scr = lv_scr_act();
     lv_obj_set_style_bg_color(scr, lv_color_hex(COL_BG), 0);
@@ -352,6 +375,7 @@ void createRobotScreen(const RobotData &robot) {
         else if (strcmp(cmdButtons[i].command, "left")    == 0) cmdLiteral = "left";
         else if (strcmp(cmdButtons[i].command, "right")   == 0) cmdLiteral = "right";
         else if (strcmp(cmdButtons[i].command, "stop")    == 0) cmdLiteral = "stop";
+        else if (strcmp(cmdButtons[i].command, "pick_object") == 0) cmdLiteral = "pick_object";
         if (cmdLiteral) {
             lv_obj_add_event_cb(btn, onCommandPressed, LV_EVENT_CLICKED, (void*)cmdLiteral);
         }
@@ -364,14 +388,23 @@ void createRobotScreen(const RobotData &robot) {
         lastBtnY = startY + i * (btnH + btnGap) + btnH;
     }
 
-    // Error label (only relevant for operator since only they can fail commands)
+    if (cmdCount > 2) {
+    // Many buttons — no space in right panel, put label right of Back button
+    err_label = lv_label_create(info_panel);
+    lv_obj_set_style_text_align(err_label, LV_TEXT_ALIGN_RIGHT, 0);
+    lv_obj_set_width(err_label, 154);
+    lv_obj_set_pos(err_label, 108, 194);
+    } else {
+    // Few buttons — enough space below them in right panel
     err_label = lv_label_create(btn_panel);
-    lv_label_set_text(err_label, "");
-    lv_obj_set_style_text_color(err_label, lv_color_hex(COL_DANGER), 0);
     lv_obj_set_style_text_align(err_label, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_width(err_label, 148);
-    lv_label_set_long_mode(err_label, LV_LABEL_LONG_WRAP);
     lv_obj_set_pos(err_label, 0, lastBtnY + 6);
+    }
+    lv_label_set_text(err_label, "");
+    lv_obj_set_style_text_color(err_label, lv_color_hex(COL_DANGER), 0);
+    lv_obj_set_style_text_font(err_label, &lv_font_montserrat_14, 0);
+    lv_label_set_long_mode(err_label, LV_LABEL_LONG_WRAP);
     lv_obj_add_flag(err_label, LV_OBJ_FLAG_HIDDEN);
 }
 }

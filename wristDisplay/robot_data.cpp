@@ -14,6 +14,7 @@ int getCommandButtons(const RobotData &robot, CommandButton buttons[], int maxBu
         else if (strcasecmp(cap, "turn left") == 0)                             { strncpy(buttons[count].label, "LEFT",    16); strncpy(buttons[count].command, "left",    16); count++; }
         else if (strcasecmp(cap, "turn right") == 0)                            { strncpy(buttons[count].label, "RIGHT",   16); strncpy(buttons[count].command, "right",   16); count++; }
         else if (strcasecmp(cap, "stop") == 0 || strcasecmp(cap, "stop on command") == 0) { strncpy(buttons[count].label, "STOP", 16); strncpy(buttons[count].command, "stop", 16); count++; }
+        else if (strcasecmp(cap, "pick_object") == 0)                                  { strncpy(buttons[count].label, "PICK", 16); strncpy(buttons[count].command, "pick_object", 16); count++; }
         // Autonomous caps (line following, obstacle avoidance etc.) → no button
     }
     return count;
