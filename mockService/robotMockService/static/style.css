@@ -8,27 +8,46 @@ body {
 
 h1 {
     text-align: center;
-    margin-bottom: 30px;
+    margin-bottom: 12px;
     color: #ffffff;
+    letter-spacing: 0.5px;
 }
 
 #robot-container {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-    gap: 20px;
+    gap: 16px;
+    padding: 20px;
 }
 
 .robot-card {
-    background: #1e1e1e;
+    background: #1a1a1a;
     border-radius: 12px;
     padding: 20px;
-    border: 1px solid #333;
+    border: 1px solid #2d2d2d;
+    border-left: 4px solid #3a3a3a;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-    transition: transform 0.2s ease;
+    transition: transform 0.2s ease, border-left-color 0.2s ease;
 }
 
 .robot-card:hover {
     transform: translateY(-3px);
+}
+
+.robot-card.danger-level-3 {
+    border-left-color: #f87171;
+}
+
+.robot-card.danger-level-2 {
+    border-left-color: #fb923c;
+}
+
+.robot-card.danger-level-1 {
+    border-left-color: #fde047;
+}
+
+.robot-card.danger-level-0 {
+    border-left-color: #4ade80;
 }
 
 .robot-header {
@@ -44,25 +63,46 @@ h1 {
 }
 
 .robot-type {
-    font-size: 13px;
-    color: #aaa;
-    background: #2d2d2d;
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: #0a0a0a;
+    background: #8a8a8a;
     padding: 4px 8px;
     border-radius: 5px;
 }
 
+.robot-type.type-arduino {
+    background: #38bdf8;
+}
+
+.robot-type.type-dobot {
+    background: #c084fc;
+}
+
+.robot-type.type-demo {
+    background: #fbbf24;
+}
+
 .info-row {
-    margin-bottom: 10px;
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
 }
 
 .label {
     color: #888;
     font-size: 13px;
+    white-space: nowrap;
 }
 
 .value {
     font-size: 16px;
-    margin-top: 2px;
+    margin-top: 0;
+    text-align: right;
 }
 
 .status-badge {
@@ -89,13 +129,14 @@ h1 {
     color: #93c5fd;
 }
 
-.battery-bar {
+.battery-bar,
+.progress-bar {
     width: 100%;
-    height: 16px;
+    height: 10px;
     background: #2a2a2a;
     border-radius: 10px;
     overflow: hidden;
-    margin-top: 5px;
+    margin-top: 4px;
 }
 
 .battery-fill {
@@ -103,13 +144,8 @@ h1 {
     background: limegreen;
 }
 
-.progress-bar {
-    width: 100%;
-    height: 16px;
-    background: #2a2a2a;
-    border-radius: 10px;
-    overflow: hidden;
-    margin-top: 5px;
+.battery-fill.battery-low {
+    background: #f87171;
 }
 
 .progress-fill {
@@ -118,9 +154,9 @@ h1 {
 }
 
 .danger-box {
-    padding: 10px;
+    padding: 6px;
     border-radius: 8px;
-    margin-top: 15px;
+    margin-top: 10px;
     font-weight: bold;
     text-align: center;
 }
@@ -146,8 +182,8 @@ h1 {
 }
 
 .command-section {
-    margin-top: 15px;
-    padding-top: 15px;
+    margin-top: 10px;
+    padding-top: 10px;
     border-top: 1px solid #333;
 }
 
@@ -159,7 +195,122 @@ h1 {
 
 .refresh-time {
     text-align: center;
-    margin-bottom: 20px;
+    margin-bottom: 12px;
     color: #999;
     font-size: 14px;
+}
+
+.capabilities {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.capability-tag {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    background: #1f2d23;
+    color: #4ade80;
+    border: 1px solid #2d4a37;
+}
+
+.capability-tag:hover {
+    background: #28392f;
+    transform: scale(1.05);
+}
+
+.hidden {
+    display: none !important;
+}
+
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.75);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background: #1f1f1f;
+    padding: 24px;
+    border-radius: 12px;
+    min-width: 350px;
+    max-width: 500px;
+    border: 1px solid #444;
+    box-shadow: 0 0 25px rgba(0, 0, 0, 0.4);
+}
+
+.modal-content h2 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    color: white;
+}
+
+.command-controls {
+    margin-top: 12px;
+    margin-bottom: 12px;
+}
+
+.command-button {
+    width: 100%;
+    padding: 10px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 14px;
+    background: #2563eb;
+    color: #fff;
+}
+
+.command-button:hover {
+    background: #1d4ed8;
+    opacity: 1;
+}
+
+#capability-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.capability-button {
+    padding: 10px 14px;
+    border: 1px solid #444;
+    border-radius: 6px;
+    cursor: pointer;
+    background: #2b2b2b;
+    color: white;
+}
+
+.capability-button:hover {
+    background: #3b3b3b;
+}
+
+.close-button {
+    width: 100%;
+    padding: 10px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    background: #444;
+    color: white;
+}
+
+.close-button:hover {
+    background: #555;
+}
+
+.progress-fill {
+    height: 100%;
+    background: #2563eb;
+    transition: none;
 }
